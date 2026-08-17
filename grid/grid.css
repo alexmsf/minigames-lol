@@ -1,0 +1,68 @@
+@import url("../shared/theme.css");
+
+.board-scroll{overflow-x:auto;padding-bottom:4px;}
+.board{
+  display:grid;
+  grid-template-columns: 96px repeat(3, minmax(96px,1fr));
+  grid-template-rows: 74px repeat(3, minmax(96px,1fr));
+  gap:6px;
+  min-width:460px;
+}
+.headcell{
+  display:flex;align-items:center;justify-content:center;text-align:center;
+  padding:6px 8px;font-size:12px;font-weight:600;color:var(--hex-gold);
+  line-height:1.25;
+}
+.headcell.corner{color:transparent;}
+.cell{
+  position:relative;
+  background:var(--bg-cell);
+  border:1px solid var(--border-soft);
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px), calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  transition:background .15s ease, border-color .15s ease;
+  overflow:hidden;
+}
+.cell:hover{border-color:var(--hex-teal-dim);}
+.cell.active{
+  border-color:var(--hex-teal);
+  box-shadow:0 0 0 1px var(--hex-teal), 0 0 14px 0 rgba(10,200,185,0.35);
+}
+.cell.correct{cursor:default;border-color:var(--hex-gold);}
+.cell.wrong{cursor:default;border-color:var(--blood-red);background:rgba(195,66,63,0.12);}
+.cell.revealed{cursor:default;border-color:var(--text-faint);}
+.cell.revealed .fill{filter:grayscale(1) brightness(0.5);}
+.cell .placeholder{color:var(--text-faint);font-size:20px;}
+.cell .fill{position:absolute;inset:0;background-size:cover;background-position:center 20%;}
+.cell .scrim{position:absolute;inset:0;background:linear-gradient(180deg, rgba(11,14,19,0.05) 40%, rgba(11,14,19,0.92) 100%);}
+.cell .champname{
+  position:absolute;bottom:6px;left:6px;right:6px;
+  font-size:11px;font-weight:600;color:#fff;text-align:center;
+  line-height:1.15;text-shadow:0 1px 3px rgba(0,0,0,0.8);
+}
+.cell.wrong .xmark{font-family:'Cinzel',serif;font-size:30px;color:var(--blood-red);font-weight:700;}
+.cell.dead{border-color:var(--blood-red);border-style:dashed;}
+.cell .dead-tag{
+  position:absolute;bottom:5px;left:5px;right:5px;
+  background:rgba(195,66,63,0.85);color:#fff;
+  font-size:8px;font-weight:700;letter-spacing:0.3px;text-transform:uppercase;
+  padding:2px 4px;border-radius:4px;text-align:center;
+}
+.cell .missed-tag{
+  position:absolute;top:5px;left:5px;
+  background:rgba(195,66,63,0.85);color:#fff;
+  font-size:8.5px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;
+  padding:2px 6px;border-radius:4px;
+}
+.cell .attempt-badge{
+  position:absolute;top:5px;right:5px;
+  background:var(--blood-red);color:#fff;
+  font-size:10px;font-weight:700;line-height:1;
+  padding:3px 6px;border-radius:10px;
+}
+
+@media (max-width:520px){
+  .board{grid-template-columns: 74px repeat(3, minmax(74px,1fr)); grid-template-rows: 60px repeat(3, minmax(74px,1fr)); min-width:340px;}
+  .headcell{font-size:10.5px;}
+}

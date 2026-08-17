@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>minigames lol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/theme.css">
+<style>
+  .game-cards{display:flex;flex-direction:column;gap:14px;margin-top:28px;}
+  .game-card{
+    display:block;text-decoration:none;
+    background:var(--bg-panel);border:1px solid var(--border-soft);border-radius:14px;
+    padding:22px 24px;transition:border-color .15s ease;
+  }
+  .game-card:hover{border-color:var(--hex-teal-dim);}
+  .game-card h2{
+    font-family:'Cinzel',serif;font-size:20px;margin:0 0 6px;color:var(--hex-gold);
+  }
+  .game-card p{margin:0;color:var(--text-dim);font-size:13px;line-height:1.55;}
+  .game-card .tag{
+    display:inline-block;margin-top:12px;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;
+    color:var(--hex-teal);border:1px solid var(--hex-teal-dim);padding:3px 10px;border-radius:999px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">League of Legends</div>
+    <h1>Champion Games</h1>
+    <p class="sub">Two ways to test how well you know the Runeterra roster — solo, or head-to-head in 1v1.</p>
+  </header>
+
+  <div class="game-cards">
+    <a class="game-card" href="grid/index.html">
+      <h2>Champion Grid</h2>
+      <p>A 3×3 puzzle grid. Pick a cell, then name a champion who fits both its row and column category.</p>
+      <span class="tag">Solo · 1v1</span>
+    </a>
+    <a class="game-card" href="chain/index.html">
+      <h2>Champion Chain</h2>
+      <p>Start with one champion and keep the chain going — each new link must share a region, species, position, or release year with the one before it.</p>
+      <span class="tag">Solo · 1v1</span>
+    </a>
+  </div>
+</div>
+</body>
+</html>

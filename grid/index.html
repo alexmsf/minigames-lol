@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Runeterra Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../shared/theme.css">
+<link rel="stylesheet" href="grid.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Runeterra</div>
+    <h1>Champion Grid</h1>
+    <p class="sub">Pick a cell, then name a champion who fits both its row and column.</p>
+  </header>
+
+  <div class="nav-row">
+    <a href="../index.html">Hub</a>
+    <a href="index.html" class="active">Grid</a>
+    <a href="../chain/index.html">Chain</a>
+  </div>
+
+  <div class="mp-panel" id="mp-panel">
+    <h3>Play 1v1</h3>
+    <p id="mp-intro">Same grid, same time — whoever solves it best wins. Create a room and share the code, or join one.</p>
+    <div class="mp-row" id="mp-lobby-row">
+      <button class="ghost" id="mp-create-btn">Create room</button>
+      <input type="text" id="mp-code-input" placeholder="CODE" maxlength="5" />
+      <button class="ghost" id="mp-join-btn">Join room</button>
+    </div>
+    <div class="mp-code" id="mp-code-display" style="display:none;"></div>
+    <div class="mp-status" id="mp-status"></div>
+  </div>
+
+  <div class="settings-row">
+    <label class="toggle-label" id="infinite-toggle-label" for="infinite-toggle">
+      <span class="switch">
+        <input type="checkbox" id="infinite-toggle">
+        <span class="slider"></span>
+      </span>
+      Infinite guesses
+    </label>
+    <label class="toggle-label" id="timer-toggle-label" for="timer-toggle">
+      <span class="switch">
+        <input type="checkbox" id="timer-toggle">
+        <span class="slider"></span>
+      </span>
+      Timed round
+    </label>
+  </div>
+  <p class="settings-note" id="settings-note">Infinite guesses: off means one guess per cell; on means wrong guesses tell you what didn't match and you can keep trying &mdash; flip it any time, even mid-round. Timed round locks in once you make your first guess.</p>
+
+  <div class="statbar">
+    <div class="stat"><div class="num" id="stat-score">0/0</div><div class="lbl">Solved</div></div>
+    <div class="stat"><div class="num" id="stat-left">9</div><div class="lbl">Remaining</div></div>
+    <div class="stat"><div class="num streak" id="stat-streak">0</div><div class="lbl">Perfect streak</div></div>
+  </div>
+
+  <div class="timer-row" id="timer-row" style="display:none;">
+    <div class="timer-pill" id="timer-pill">0:00</div>
+  </div>
+
+  <div class="board-scroll">
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="guess-panel">
+    <div class="guess-hint" id="guess-hint">Select a cell above to start guessing.</div>
+    <div class="guess-row">
+      <input type="text" class="guess-input" id="guess-input" placeholder="Type a champion name..." autocomplete="off" disabled />
+      <div class="suggestions" id="suggestions"></div>
+    </div>
+    <div class="err" id="err-line"></div>
+    <div class="hint-row" id="hint-row" style="display:none;">
+      <button class="hint-btn" id="hint-btn">Hint (1/2)</button>
+      <div class="hint-text" id="hint-text"></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="ghost danger" id="give-up-btn">Give up</button>
+    <button class="ghost" id="new-grid-btn">New grid</button>
+  </div>
+
+  <div class="result-banner" id="result-banner">
+    <div class="score" id="final-score">0 / 9</div>
+    <div class="rline" id="final-line">Champions guessed correctly this round.</div>
+    <div class="rline" id="mp-result-line" style="display:none;"></div>
+    <div class="result-actions">
+      <button class="primary" id="play-again-btn">Play again</button>
+      <button class="secondary" id="share-btn">Share result</button>
+    </div>
+    <div class="copy-toast" id="copy-toast"></div>
+  </div>
+
+  <div class="stats-strip" id="stats-strip"></div>
+</div>
+
+<script type="module" src="grid.js"></script>
+</body>
+</html>
