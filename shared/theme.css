@@ -233,6 +233,54 @@ button.ghost:disabled{opacity:0.35;cursor:default;}
 }
 .mp-status{font-size:12px;color:var(--text-faint);margin-top:10px;}
 .mp-status.live{color:var(--hex-teal);}
+
+/* ---- clear win/lose/tie result state (shared by Grid + Chain 1v1) ---- */
+.rline.mp-win, .rline.mp-lose, .rline.mp-tie{
+  font-weight:700;font-size:15px;padding:10px 14px;border-radius:8px;margin-top:10px;
+}
+.rline.mp-win{color:#baffd8;background:rgba(10,200,185,0.14);border:1px solid var(--hex-teal);}
+.rline.mp-lose{color:#ffc4c2;background:rgba(195,66,63,0.14);border:1px solid var(--blood-red);}
+.rline.mp-tie{color:var(--hex-gold);background:rgba(200,170,110,0.12);border:1px solid var(--hex-gold-dim);}
+
+/* ---- coin flip ---- */
+.coin-flip{
+  font-family:'Cinzel',serif;font-size:14px;color:var(--hex-gold);
+  margin-top:10px;
+}
+.coin-flip .coin{display:inline-block;animation:coin-spin 0.7s ease-out;}
+@keyframes coin-spin{
+  0%{transform:rotateY(0deg);}
+  100%{transform:rotateY(1080deg);}
+}
+
+/* ---- mode toggle (Race / Turns) ---- */
+.mp-mode-row{display:flex;justify-content:center;gap:8px;margin-bottom:14px;}
+.mode-btn{
+  background:var(--bg-panel-2);border:1px solid var(--border-soft);color:var(--text-dim);
+  padding:7px 16px;border-radius:999px;font-family:'Inter',sans-serif;
+  font-size:12px;font-weight:600;cursor:pointer;
+}
+.mode-btn.active{color:var(--hex-teal);border-color:var(--hex-teal-dim);background:rgba(10,200,185,0.1);}
+.mode-btn:disabled{opacity:0.45;cursor:default;}
+
+/* ---- turn-based grid ownership ---- */
+.cell.owned-host{border-color:var(--hex-teal);box-shadow:0 0 0 1px var(--hex-teal);}
+.cell.owned-guest{border-color:var(--hex-gold);box-shadow:0 0 0 1px var(--hex-gold);}
+.cell .owner-tag{
+  position:absolute;top:5px;left:5px;
+  font-size:8.5px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;
+  padding:2px 6px;border-radius:4px;color:#fff;
+}
+.owner-tag.owned-host{background:rgba(10,200,185,0.85);}
+.owner-tag.owned-guest{background:rgba(200,170,110,0.85);}
+.mp-score-row{
+  display:flex;justify-content:center;gap:24px;margin:6px 0 18px;
+}
+.mp-score-row .mp-score{
+  text-align:center;font-family:'Cinzel',serif;
+}
+.mp-score-row .mp-score .n{font-size:20px;font-weight:700;color:var(--text-main);}
+.mp-score-row .mp-score .l{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-faint);}
 .player-tag{
   display:inline-flex;align-items:center;gap:6px;font-size:11px;
   background:var(--bg-panel-2);border:1px solid var(--border-soft);

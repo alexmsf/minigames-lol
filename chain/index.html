@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Runeterra Chain</title>
+<title>lol chain</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,9 +13,9 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">Runeterra</div>
+    <div class="eyebrow">minigames lol</div>
     <h1>Champion Chain</h1>
-    <p class="sub">Name a champion who shares a region, species, position, or release year with the last link. Keep the chain going as long as you can.</p>
+    <p class="sub">Name a champion who shares a region, species, position, or release year with the last link. Keep the chain going as long as you can &mdash; but you can't use the same kind of connection two links in a row.</p>
   </header>
 
   <div class="nav-row">
@@ -26,7 +26,7 @@
 
   <div class="mp-panel" id="mp-panel">
     <h3>Play 1v1</h3>
-    <p id="mp-intro">Take turns extending one shared chain. Whoever can't (or won't) continue it loses the round.</p>
+    <p id="mp-intro">Take turns extending one shared chain. Whoever can't (or won't) continue it loses the round. 1v1 rounds are always timed.</p>
     <div class="mp-row" id="mp-lobby-row">
       <button class="ghost" id="mp-create-btn">Create room</button>
       <input type="text" id="mp-code-input" placeholder="CODE" maxlength="5" />
@@ -56,7 +56,7 @@
       Timed run
     </label>
   </div>
-  <p class="settings-note" id="settings-note">Sudden death: off lets you keep guessing until you find a valid link; on ends your run the moment you guess wrong. Flip either any time before your first guess.</p>
+  <p class="settings-note" id="settings-note">Sudden death: off lets you keep guessing until you find a valid link; on ends your run the moment you guess wrong. You can also never use the same category (region/species/position/release year) two links in a row. Flip either toggle any time before your first guess.</p>
 
   <div class="statbar">
     <div class="stat"><div class="num" id="stat-length">1</div><div class="lbl">Chain length</div></div>
@@ -68,7 +68,7 @@
     <div class="timer-pill" id="timer-pill">0:00</div>
   </div>
 
-  <div class="chain-scroll">
+  <div class="chain-scroll" id="chain-scroll">
     <div class="chain" id="chain"></div>
   </div>
 

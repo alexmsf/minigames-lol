@@ -30,6 +30,8 @@
   box-shadow:0 0 0 1px var(--hex-teal), 0 0 14px 0 rgba(10,200,185,0.35);
 }
 .cell.correct{cursor:default;border-color:var(--hex-gold);}
+.cell.correct.owned-host{border-color:var(--hex-teal);box-shadow:0 0 0 1px var(--hex-teal), 0 0 10px 0 rgba(10,200,185,0.3);}
+.cell.correct.owned-guest{border-color:var(--hex-gold);box-shadow:0 0 0 1px var(--hex-gold), 0 0 10px 0 rgba(200,170,110,0.3);}
 .cell.wrong{cursor:default;border-color:var(--blood-red);background:rgba(195,66,63,0.12);}
 .cell.revealed{cursor:default;border-color:var(--text-faint);}
 .cell.revealed .fill{filter:grayscale(1) brightness(0.5);}

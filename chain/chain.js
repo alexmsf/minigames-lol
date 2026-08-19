@@ -1,8 +1,10 @@
 import { CHAMPIONS } from "../shared/champions-data.js";
-import { sharedAttributes, isValidChainLink } from "../shared/attributes.js";
+import { sharedAttributes, sharedAttributesExcluding, isValidChainLink } from "../shared/attributes.js";
 import { attachAutocomplete } from "../shared/autocomplete.js";
 import { createStatsStore, formatTime } from "../shared/stats.js";
 import { createRoom, joinRoom, subscribeToRoom, updateRoomState, updateRoomFields } from "../shared/multiplayer.js";
+
+const GROUP_LABELS = { region: "region", species: "species", position: "position", year: "release year" };
 
 const CHAMP_BY_ID = new Map(CHAMPIONS.map((c) => [c.id, c]));
 
@@ -39,6 +41,7 @@ let timerElapsedSeconds = 0;
 let mp = null; // { code, role, unsubscribe, roundStarted, resultSent }
 
 const chainEl = document.getElementById("chain");
+const chainScrollEl = document.getElementById("chain-scroll") || chainEl.parentElement;
 const guessInput = document.getElementById("guess-input");
 const suggestionsEl = document.getElementById("suggestions");
 const guessHint = document.getElementById("guess-hint");
@@ -186,7 +189,12 @@ function renderChain() {
     }
     chainEl.appendChild(row);
   });
-  chainEl.scrollTop = chainEl.scrollHeight;
+  // Scroll the actual overflow container (.chain-scroll), not #chain itself —
+  // #chain has no overflow/scrollbar of its own, so setting scrollTop on it
+  // was a no-op and the list never auto-scrolled as it grew.
+  requestAnimationFrame(() => {
+    chainScrollEl.scrollTop = chainScrollEl.scrollHeight;
+  });
 }
 
 function updateStatsBar() {
@@ -221,11 +229,12 @@ function submitGuess(champ) {
   }
 
   const last = chain[chain.length - 1];
-  const shared = sharedAttributes(last, champ);
+  const prevGroup = linkAttrs[linkAttrs.length - 1] ? linkAttrs[linkAttrs.length - 1].group : null;
+  const usable = sharedAttributesExcluding(last, champ, prevGroup);
 
-  if (shared.length > 0) {
+  if (usable.length > 0) {
     chain.push(champ);
-    linkAttrs.push(shared[0]);
+    linkAttrs.push(usable[0]);
     usedIds.add(champ.id);
     hintLevel = 0;
     hintTextValue = "";
@@ -239,7 +248,10 @@ function submitGuess(champ) {
   }
 
   misses++;
-  errLine.textContent = `${champ.name} doesn't share a region, species, position, or release year with ${last.name}.`;
+  const rawShared = sharedAttributes(last, champ);
+  errLine.textContent = rawShared.length > 0
+    ? `${champ.name} only connects via ${GROUP_LABELS[prevGroup] || prevGroup}, same as the last link — try a different kind of connection.`
+    : `${champ.name} doesn't share a region, species, position, or release year with ${last.name}.`;
   errLine.className = "err info";
   updateStatsBar();
   if (suddenDeath) {
@@ -250,7 +262,8 @@ function submitGuess(champ) {
 /* ---------- hints ---------- */
 function unusedValidCandidates() {
   const last = chain[chain.length - 1];
-  return CHAMPIONS.filter((c) => !usedIds.has(c.id) && isValidChainLink(last, c));
+  const prevGroup = linkAttrs[linkAttrs.length - 1] ? linkAttrs[linkAttrs.length - 1].group : null;
+  return CHAMPIONS.filter((c) => !usedIds.has(c.id) && isValidChainLink(last, c, prevGroup));
 }
 
 function renderHintUI() {
@@ -275,7 +288,8 @@ hintBtn.addEventListener("click", () => {
       hintTextValue += " Nothing left to reveal.";
     } else {
       const pick = candidates[Math.floor(Math.random() * candidates.length)];
-      const attr = sharedAttributes(chain[chain.length - 1], pick)[0];
+      const prevGroup = linkAttrs[linkAttrs.length - 1] ? linkAttrs[linkAttrs.length - 1].group : null;
+      const attr = sharedAttributesExcluding(chain[chain.length - 1], pick, prevGroup)[0];
       hintTextValue = `${hintTextValue} One option connects via "${attr.label}" and starts with "${pick.name[0]}".`;
     }
   }
@@ -358,7 +372,9 @@ function rebuildChainFromIds(ids) {
   chain = ids.map((id) => CHAMP_BY_ID.get(id));
   linkAttrs = [null];
   for (let i = 1; i < chain.length; i++) {
-    linkAttrs.push(sharedAttributes(chain[i - 1], chain[i])[0]);
+    const prevGroup = linkAttrs[i - 1] ? linkAttrs[i - 1].group : null;
+    const usable = sharedAttributesExcluding(chain[i - 1], chain[i], prevGroup);
+    linkAttrs.push(usable[0] || sharedAttributes(chain[i - 1], chain[i])[0]);
   }
   usedIds = new Set(ids);
 }
@@ -369,7 +385,7 @@ mpCreateBtn.addEventListener("click", async () => {
   try {
     const start = randomStartChampion();
     const { code, role } = await createRoom("chain", {
-      chainIds: [start.id], turn: "guest", status: "waiting",
+      chainIds: [start.id], turn: "guest", status: "waiting", round: 1,
     });
     await enterMpRoom(code, role);
   } catch (err) {
@@ -403,12 +419,13 @@ async function enterMpRoom(code, role) {
     ? "Share this code with your opponent. They move first once they join."
     : "You're in! You move first.";
 
-  mp = { code, role, unsubscribe: null, roundStarted: false };
+  mp = { code, role, unsubscribe: null, roundStarted: false, currentRound: null };
   mp.unsubscribe = await subscribeToRoom(code, (data) => onMpUpdate(role, code, data));
 }
 
 function onMpUpdate(role, code, data) {
   const bothPresent = data.hostPresent && data.guestPresent;
+  mp.lastKnownRound = data.state.round || 1;
   rebuildChainFromIds(data.state.chainIds);
   renderChain();
   updateStatsBar();
@@ -421,29 +438,45 @@ function onMpUpdate(role, code, data) {
     return;
   }
 
-  if (!mp.roundStarted) {
-    mp.roundStarted = true;
+  // Detect a (re)started round by a server-assigned round counter rather
+  // than a one-shot local flag, so the timer correctly restarts for BOTH
+  // players on a rematch — a per-client flag only ever got reset by
+  // whichever client initiated the rematch (the host), leaving the guest's
+  // clock stuck not restarting.
+  const thisRound = data.state.round;
+  if (thisRound !== mp.currentRound) {
+    mp.currentRound = thisRound;
     roundOver = false;
     guessInput.disabled = false;
     giveUpBtn.disabled = false;
     hintRow.style.display = "none"; // hints stay solo-only, to keep 1v1 fair
     resultBanner.classList.remove("show");
     setMpStatus("Both players in — go!", true);
+    // 1v1 rounds are always timed — otherwise a chain can drag on forever.
+    // (This was previously never wired up for multiplayer at all.)
+    timedRun = true;
+    timerElapsedSeconds = 0;
+    timerRow.style.display = "flex";
+    updateTimerDisplay();
+    startTimer();
   }
 
   const myTurn = data.state.turn === role;
 
   if (data.status === "finished") {
     roundOver = true;
+    stopTimer();
     guessInput.disabled = true;
     giveUpBtn.disabled = true;
     setMpStatus("Round finished.", true);
     const iLost = data.state.loserRole === role;
     mpResultLine.style.display = "block";
+    mpResultLine.classList.remove("mp-win", "mp-lose");
+    mpResultLine.classList.add(iLost ? "mp-lose" : "mp-win");
     finalScore.textContent = `Chain of ${chain.length}`;
     finalLine.textContent = iLost
-      ? "You couldn't extend the chain — your opponent wins this round."
-      : "Your opponent couldn't extend the chain — you win this round!";
+      ? "😔 You couldn't extend the chain — your opponent wins this round."
+      : "🏆 Your opponent couldn't extend the chain — you win this round!";
     mpResultLine.textContent = `Final chain length: ${chain.length}`;
     resultBanner.classList.add("show");
     return;
@@ -467,9 +500,13 @@ async function submitMpGuess(champ) {
     return;
   }
   const last = chain[chain.length - 1];
-  const shared = sharedAttributes(last, champ);
+  const prevGroup = linkAttrs[linkAttrs.length - 1] ? linkAttrs[linkAttrs.length - 1].group : null;
+  const shared = sharedAttributesExcluding(last, champ, prevGroup);
   if (shared.length === 0) {
-    errLine.textContent = `${champ.name} doesn't share a region, species, position, or release year with ${last.name}.`;
+    const rawShared = sharedAttributes(last, champ);
+    errLine.textContent = rawShared.length > 0
+      ? `${champ.name} only connects via ${GROUP_LABELS[prevGroup] || prevGroup}, same as the last link — try a different kind of connection.`
+      : `${champ.name} doesn't share a region, species, position, or release year with ${last.name}.`;
     errLine.className = "err info";
     return;
   }
@@ -494,8 +531,8 @@ document.getElementById("play-again-btn").addEventListener("click", () => {
   if (mp) {
     if (mp.role === "host") {
       const start = randomStartChampion();
-      mp.roundStarted = false;
-      updateRoomState(mp.code, { chainIds: [start.id], turn: "guest", loserRole: null })
+      const nextRound = (mp.lastKnownRound || 1) + 1;
+      updateRoomState(mp.code, { chainIds: [start.id], turn: "guest", loserRole: null, round: nextRound })
         .then(() => updateRoomFields(mp.code, { status: "in_progress" }));
     } else {
       setMpStatus("Waiting for host to start the next round…");

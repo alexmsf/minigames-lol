@@ -89,7 +89,7 @@ export const CHAMPIONS = [
       "Assassin"
     ],
     "damageType": "AD",
-    "difficulty": 0,
+    "difficulty": 10,
     "splashUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Akshan_0.jpg",
     "iconUrl": "https://ddragon.leagueoflegends.com/cdn/16.16.1/img/champion/Akshan.png",
     "resource": "Mana",
@@ -1560,7 +1560,7 @@ export const CHAMPIONS = [
       "Marksman",
       "Mage"
     ],
-    "damageType": "AD",
+    "damageType": "Hybrid",
     "difficulty": 6,
     "splashUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Kaisa_0.jpg",
     "iconUrl": "https://ddragon.leagueoflegends.com/cdn/16.16.1/img/champion/Kaisa.png",
@@ -2775,7 +2775,8 @@ export const CHAMPIONS = [
     ],
     "positions": [
       "Top",
-      "Support"
+      "Support",
+      "Jungle"
     ],
     "rangeType": [
       "Melee"
@@ -2979,7 +2980,7 @@ export const CHAMPIONS = [
       "Support"
     ],
     "damageType": "AP",
-    "difficulty": 0,
+    "difficulty": 6,
     "splashUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Rell_0.jpg",
     "iconUrl": "https://ddragon.leagueoflegends.com/cdn/16.16.1/img/champion/Rell.png",
     "resource": "Mana",
@@ -3257,7 +3258,7 @@ export const CHAMPIONS = [
       "Mage"
     ],
     "damageType": "AP",
-    "difficulty": 0,
+    "difficulty": 2,
     "splashUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Seraphine_0.jpg",
     "iconUrl": "https://ddragon.leagueoflegends.com/cdn/16.16.1/img/champion/Seraphine.png",
     "resource": "Mana",
@@ -4156,7 +4157,7 @@ export const CHAMPIONS = [
       "Mage"
     ],
     "damageType": "AP",
-    "difficulty": 0,
+    "difficulty": 6,
     "splashUrl": "https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Vex_0.jpg",
     "iconUrl": "https://ddragon.leagueoflegends.com/cdn/16.16.1/img/champion/Vex.png",
     "resource": "Mana",

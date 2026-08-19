@@ -128,6 +128,48 @@ export function shuffle(arr) {
   return a;
 }
 
+// A grid is only actually solvable if there's a way to assign 9 *distinct*
+// champions to the 9 cells such that every champion satisfies its cell's row
+// AND column. Checking each cell's answer count in isolation (as the loop
+// below does) is NOT enough to guarantee that: two cells can each have
+// plenty of individual answers while still sharing almost the same small
+// pool of champions, so a player who fills other cells first can strand a
+// later cell with zero unused matches left ("no matches left" — e.g. a
+// small-species row like God-Warrior crossed with columns that happen to
+// share the same handful of champions). This is exactly Hall's marriage
+// problem, so we verify a genuine perfect matching exists (via Kuhn's
+// augmenting-path algorithm — trivially fast for 9 cells) before accepting
+// a candidate grid, and reject/retry otherwise.
+function hasPerfectMatching(cells) {
+  const cellAnswerIds = [];
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      cellAnswerIds.push(cells[r][c].map((champ) => champ.id));
+    }
+  }
+  const n = cellAnswerIds.length; // always 9 (3x3)
+  const matchedCellForChamp = new Map(); // championId -> cellIndex currently assigned
+
+  function tryAssign(cellIdx, visited) {
+    for (const champId of cellAnswerIds[cellIdx]) {
+      if (visited.has(champId)) continue;
+      visited.add(champId);
+      const occupant = matchedCellForChamp.get(champId);
+      if (occupant === undefined || tryAssign(occupant, visited)) {
+        matchedCellForChamp.set(champId, cellIdx);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  let matchedCount = 0;
+  for (let i = 0; i < n; i++) {
+    if (tryAssign(i, new Set())) matchedCount++;
+  }
+  return matchedCount === n;
+}
+
 export function generateGrid(champions, categories, opts = {}) {
   const minAnswers = opts.minAnswers ?? 2;
   const maxAnswers = opts.maxAnswers ?? 15;
@@ -152,6 +194,8 @@ export function generateGrid(champions, categories, opts = {}) {
     if (cols.length < 3) continue;
 
     const cells = rows.map((r) => cols.map((c) => intersectionAnswers(r, c, champions)));
+    if (!hasPerfectMatching(cells)) continue; // structurally guaranteed unsolvable — reject and retry
+
     return { rows, cols, cells };
   }
   return null;
@@ -202,6 +246,16 @@ export function sharedAttributes(a, b) {
   return shared;
 }
 
-export function isValidChainLink(prev, candidate) {
-  return sharedAttributes(prev, candidate).length > 0;
+// `excludeGroup`, when given, filters out shared attributes belonging to
+// that group — used to enforce "you can't use the same category two links
+// in a row" (e.g. species:Human -> species:Human is blocked, but
+// species:Human -> region:Ionia is fine even if both are technically shared).
+export function sharedAttributesExcluding(a, b, excludeGroup) {
+  const shared = sharedAttributes(a, b);
+  if (!excludeGroup) return shared;
+  return shared.filter((attr) => attr.group !== excludeGroup);
+}
+
+export function isValidChainLink(prev, candidate, excludeGroup) {
+  return sharedAttributesExcluding(prev, candidate, excludeGroup).length > 0;
 }

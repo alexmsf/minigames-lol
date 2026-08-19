@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Runeterra Grid</title>
+<title>lol grid</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">Runeterra</div>
+    <div class="eyebrow">minigames lol</div>
     <h1>Champion Grid</h1>
     <p class="sub">Pick a cell, then name a champion who fits both its row and column.</p>
   </header>
@@ -26,6 +26,10 @@
 
   <div class="mp-panel" id="mp-panel">
     <h3>Play 1v1</h3>
+    <div class="mp-mode-row" id="mp-mode-row">
+      <button class="mode-btn active" id="mp-mode-race" data-mode="race">Race</button>
+      <button class="mode-btn" id="mp-mode-turns" data-mode="turns">Turns</button>
+    </div>
     <p id="mp-intro">Same grid, same time — whoever solves it best wins. Create a room and share the code, or join one.</p>
     <div class="mp-row" id="mp-lobby-row">
       <button class="ghost" id="mp-create-btn">Create room</button>
@@ -33,7 +37,16 @@
       <button class="ghost" id="mp-join-btn">Join room</button>
     </div>
     <div class="mp-code" id="mp-code-display" style="display:none;"></div>
+    <div class="coin-flip" id="coin-flip" style="display:none;"></div>
     <div class="mp-status" id="mp-status"></div>
+    <div id="mp-turn-row" style="display:none;margin-top:10px;">
+      <span class="player-tag" id="mp-tag-host">Host</span>
+      <span class="player-tag" id="mp-tag-guest">Guest</span>
+    </div>
+    <div class="mp-score-row" id="mp-score-row" style="display:none;">
+      <div class="mp-score"><div class="n" id="mp-score-host">0</div><div class="l">Host</div></div>
+      <div class="mp-score"><div class="n" id="mp-score-guest">0</div><div class="l">Guest</div></div>
+    </div>
   </div>
 
   <div class="settings-row">
@@ -52,7 +65,7 @@
       Timed round
     </label>
   </div>
-  <p class="settings-note" id="settings-note">Infinite guesses: off means one guess per cell; on means wrong guesses tell you what didn't match and you can keep trying &mdash; flip it any time, even mid-round. Timed round locks in once you make your first guess.</p>
+  <p class="settings-note" id="settings-note">Infinite guesses: off means one guess per cell; on means wrong guesses tell you what didn't match and you can keep trying &mdash; flip it any time, even mid-round. Timed round locks in once you make your first guess. 1v1 Turns rounds are always timed with infinite guesses on.</p>
 
   <div class="statbar">
     <div class="stat"><div class="num" id="stat-score">0/0</div><div class="lbl">Solved</div></div>
@@ -76,12 +89,13 @@
     </div>
     <div class="err" id="err-line"></div>
     <div class="hint-row" id="hint-row" style="display:none;">
-      <button class="hint-btn" id="hint-btn">Hint (1/2)</button>
+      <button class="hint-btn" id="hint-btn">Hint (1/3)</button>
       <div class="hint-text" id="hint-text"></div>
     </div>
   </div>
 
   <div class="actions">
+    <button class="ghost" id="pass-turn-btn" style="display:none;">Pass turn</button>
     <button class="ghost danger" id="give-up-btn">Give up</button>
     <button class="ghost" id="new-grid-btn">New grid</button>
   </div>
