@@ -259,3 +259,75 @@ export function sharedAttributesExcluding(a, b, excludeGroup) {
 export function isValidChainLink(prev, candidate, excludeGroup) {
   return sharedAttributesExcluding(prev, candidate, excludeGroup).length > 0;
 }
+
+/* ---------- puzzle builder (Connections game) ---------- */
+
+// Classic NYT-Connections-style difficulty ramp: rarer (smaller-pool)
+// categories are "harder" and get the purple/hardest slot.
+export const CONNECTIONS_DIFFICULTY_ORDER = ["purple", "blue", "green", "yellow"];
+
+// Picks `numGroups` categories and, for each, a set of `groupSize` champions
+// that match ONLY that category among the chosen ones (not any of the other
+// three) — so every one of the numGroups*groupSize champions used in the
+// puzzle has exactly one correct group, with no built-in ambiguity beyond
+// the intended "these categories look similar" trickiness of picking nearby
+// categories. Returns an array of { category, champions, difficulty },
+// sorted hardest (purple) first, or null if no valid combination was found
+// within maxTries.
+export function buildConnectionsPuzzle(champions, categories, opts = {}) {
+  const groupSize = opts.groupSize ?? 4;
+  const numGroups = opts.numGroups ?? 4;
+  const maxTries = opts.maxTries ?? 4000;
+
+  const pool = categories.filter((cat) => getAnswers(cat, champions).length >= groupSize);
+  if (pool.length < numGroups) return null;
+
+  for (let t = 0; t < maxTries; t++) {
+    const chosen = shuffle(pool).slice(0, numGroups);
+
+    const exclusivePools = chosen.map(() => []);
+    for (const champ of champions) {
+      let matchIdx = -1;
+      let matchCount = 0;
+      for (let i = 0; i < chosen.length; i++) {
+        if (chosen[i].matches(champ)) { matchIdx = i; matchCount++; }
+      }
+      if (matchCount === 1) exclusivePools[matchIdx].push(champ);
+    }
+    if (exclusivePools.some((p) => p.length < groupSize)) continue;
+
+    const groups = chosen.map((cat, i) => ({
+      category: cat,
+      champions: shuffle(exclusivePools[i]).slice(0, groupSize),
+    }));
+
+    // Difficulty reflects how rare the category is overall (its full answer
+    // pool across every champion), not just this draw's 4 picks, so it's a
+    // stable property of the category rather than an artifact of shuffling.
+    groups.sort((a, b) => getAnswers(a.category, champions).length - getAnswers(b.category, champions).length);
+    groups.forEach((g, i) => { g.difficulty = CONNECTIONS_DIFFICULTY_ORDER[i] || "yellow"; });
+
+    return groups;
+  }
+  return null;
+}
+
+// Serializes a puzzle to plain ids so it can be written to a multiplayer
+// room and rebuilt identically by the other client.
+export function connectionsPuzzleToSpec(puzzle) {
+  return puzzle.map((g) => ({
+    categoryId: g.category.id,
+    champIds: g.champions.map((c) => c.id),
+    difficulty: g.difficulty,
+  }));
+}
+
+// Rebuilds a puzzle from a spec (as produced by connectionsPuzzleToSpec)
+// using lookup maps the caller already has (categoryById, champById).
+export function connectionsPuzzleFromSpec(spec, categoryById, champById) {
+  return spec.map((g) => ({
+    category: categoryById.get(g.categoryId),
+    champions: g.champIds.map((id) => champById.get(id)),
+    difficulty: g.difficulty,
+  }));
+}
