@@ -15,7 +15,7 @@
   <header>
     <div class="eyebrow">minigames lol</div>
     <h1>Champion Chain</h1>
-    <p class="sub">Name a champion who shares a region, species, position, or release year with the last link. Keep the chain going as long as you can &mdash; but you can't use the same kind of connection two links in a row.</p>
+    <p class="sub">Name a champion who shares a region, species, position, or release year with the last link. Keep the chain going as long as you can &mdash; but you can't use the same kind of connection two links in a row, and the clock is always running.</p>
   </header>
 
   <div class="nav-row">
@@ -26,7 +26,7 @@
 
   <div class="mp-panel" id="mp-panel">
     <h3>Play 1v1</h3>
-    <p id="mp-intro">Take turns extending one shared chain. Whoever can't (or won't) continue it loses the round. 1v1 rounds are always timed.</p>
+    <p id="mp-intro">Take turns extending one shared chain — whoever runs out of clock, or can't (or won't) continue it, loses the round. The room host sets sudden death for the round below before creating it; it applies to both players. Every 1v1 round is timed, with the per-turn clock shrinking as the chain grows.</p>
     <div class="mp-row" id="mp-lobby-row">
       <button class="ghost" id="mp-create-btn">Create room</button>
       <input type="text" id="mp-code-input" placeholder="CODE" maxlength="5" />
@@ -34,13 +34,14 @@
     </div>
     <div class="mp-code" id="mp-code-display" style="display:none;"></div>
     <div class="mp-status" id="mp-status"></div>
+    <div class="mp-settings-line" id="mp-settings-line" style="display:none;"></div>
     <div id="mp-turn-row" style="display:none;margin-top:10px;">
       <span class="player-tag" id="mp-tag-host">Host</span>
       <span class="player-tag" id="mp-tag-guest">Guest</span>
     </div>
   </div>
 
-  <div class="settings-row">
+  <div class="settings-row" id="settings-row">
     <label class="toggle-label" id="sudden-toggle-label" for="sudden-toggle">
       <span class="switch">
         <input type="checkbox" id="sudden-toggle">
@@ -48,15 +49,8 @@
       </span>
       Sudden death
     </label>
-    <label class="toggle-label" id="timer-toggle-label" for="timer-toggle">
-      <span class="switch">
-        <input type="checkbox" id="timer-toggle">
-        <span class="slider"></span>
-      </span>
-      Timed run
-    </label>
   </div>
-  <p class="settings-note" id="settings-note">Sudden death: off lets you keep guessing until you find a valid link; on ends your run the moment you guess wrong. You can also never use the same category (region/species/position/release year) two links in a row. Flip either toggle any time before your first guess.</p>
+  <p class="settings-note" id="settings-note">Sudden death: off lets you keep guessing on your turn as many times as you like, as long as the clock hasn't run out; on ends your run the moment you guess wrong. Every chain is timed &mdash; 30s for your first link, shrinking by 1s each successful link down to a 5s floor, and running out of time always ends the round. You also can never use the same category (region/species/position/release year) two links in a row. In 1v1, the room host sets sudden death for both players when they create the room.</p>
 
   <div class="statbar">
     <div class="stat"><div class="num" id="stat-length">1</div><div class="lbl">Chain length</div></div>
@@ -65,7 +59,7 @@
   </div>
 
   <div class="timer-row" id="timer-row" style="display:none;">
-    <div class="timer-pill" id="timer-pill">0:00</div>
+    <div class="timer-pill" id="timer-pill">0:30</div>
   </div>
 
   <div class="chain-scroll" id="chain-scroll">

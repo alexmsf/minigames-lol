@@ -68,7 +68,7 @@ function championFlavorFacts(champ) {
     facts.push({
       group: "resource",
       text: champ.resource === "Manaless"
-        ? "They don't need mana to unleash their kit."
+        ? "They don't need mana to use their skills."
         : `Their abilities run on ${champ.resource.toLowerCase()}.`,
     });
   }
@@ -113,10 +113,16 @@ const giveUpBtn = document.getElementById("give-up-btn");
 const shareBtn = document.getElementById("share-btn");
 const copyToast = document.getElementById("copy-toast");
 const infiniteToggle = document.getElementById("infinite-toggle");
+const infiniteToggleLabel = document.getElementById("infinite-toggle-label");
 const timerToggle = document.getElementById("timer-toggle");
 const timerToggleLabel = document.getElementById("timer-toggle-label");
 const timerRow = document.getElementById("timer-row");
 const timerPill = document.getElementById("timer-pill");
+const settingsNote = document.getElementById("settings-note");
+const turnTimerRow = document.getElementById("turn-timer-row");
+const turnTimerPill = document.getElementById("turn-timer-pill");
+const DEFAULT_SETTINGS_NOTE = settingsNote.textContent;
+const TURN_SECONDS = 30;
 const statsStripEl = document.getElementById("stats-strip");
 const newGridBtn = document.getElementById("new-grid-btn");
 
@@ -150,7 +156,33 @@ function setMpMode(mode) {
   mpModeTurnsBtn.classList.toggle("active", mode === "turns");
   mpIntro.textContent = mode === "race"
     ? "Same grid, same time — whoever solves it best wins. Create a room and share the code, or join one."
-    : "One shared grid — take turns picking a cell and naming a champion. A coin flip decides who goes first. Always timed, infinite guesses on your turn.";
+    : "One shared grid — take turns picking a cell and naming a champion. A coin flip decides who goes first. One guess per turn: a wrong answer ends it, and you've got 30 seconds before it passes automatically.";
+  updateSettingsUiForMode();
+}
+
+/* Whoever creates the room is the sole owner of round settings — infinite
+   guesses (race only) and the timer — and those settings are written into
+   the room itself so both players play under the exact same rules. Timed
+   is always on in 1v1, so that toggle is hidden entirely once you're
+   playing multiplayer; infinite guesses is meaningless in Turns mode since
+   any guess (right or wrong) always ends your turn, so it's hidden there
+   too. */
+function updateSettingsUiForMode() {
+  const inMp = !!mp;
+  const turnsMode = mpMode === "turns";
+
+  timerToggleLabel.style.display = inMp ? "none" : "";
+  infiniteToggleLabel.style.display = turnsMode ? "none" : "";
+
+  if (inMp) {
+    settingsNote.textContent = mp.mode === "turns"
+      ? "1v1 Turns is always timed. One guess per turn — get it wrong and it passes to your opponent, or wait too long (30s) and it passes automatically."
+      : "1v1 Race is always timed for a fair comparison. The room owner's infinite-guesses setting applies to both players.";
+  } else if (turnsMode) {
+    settingsNote.textContent = "1v1 Turns is always timed, and every guess (right or wrong) ends your turn, so there's no infinite-guesses option here.";
+  } else {
+    settingsNote.textContent = DEFAULT_SETTINGS_NOTE;
+  }
 }
 
 /* ---------- building/rebuilding a grid from category ids (deterministic across clients) ---------- */
@@ -635,12 +667,14 @@ function setMpResultVerdict(text, verdict) {
 
 /* ---------- Race mode ---------- */
 
-async function startMpRound(rowIds, colIds) {
+async function startMpRound(rowIds, colIds, hostInfiniteGuesses) {
   const g = gridFromCategoryIds(rowIds, colIds);
   newGridBtn.disabled = true;
+  timerToggle.checked = true; // 1v1 is always timed
   timerToggle.disabled = true;
-  infiniteToggle.checked = false; // 1v1 race keeps single-guess-per-cell for a fair race
+  infiniteToggle.checked = !!hostInfiniteGuesses; // set by the room owner, applied to both players
   infiniteToggle.disabled = true;
+  updateSettingsUiForMode();
   newGame(g);
 }
 
@@ -664,7 +698,7 @@ function onRaceUpdate(role, data) {
     mp.currentGridKey = gridKey;
     mp.resultSent = false;
     setMpStatus("Both players in — go!", true);
-    startMpRound(data.state.rowIds, data.state.colIds);
+    startMpRound(data.state.rowIds, data.state.colIds, data.state.infiniteGuesses);
     return;
   }
 
@@ -723,6 +757,11 @@ function initTurnRoundLocal(rowIds, colIds, data) {
   giveUpBtn.disabled = false;
   passTurnBtn.style.display = "inline-block";
 
+  timerToggle.checked = true; // 1v1 Turns is always timed
+  timerToggle.disabled = true;
+  infiniteToggle.disabled = true; // no infinite guesses in Turns — any guess ends your turn
+  updateSettingsUiForMode();
+
   timerRow.style.display = "flex";
   timerElapsedSeconds = 0;
   updateTimerDisplay();
@@ -730,6 +769,9 @@ function initTurnRoundLocal(rowIds, colIds, data) {
 
   mpScoreRow.style.display = "flex";
   mpTurnRow.style.display = "block";
+
+  mp.turnTimeoutHandled = false;
+  startTurnTicker();
 
   renderTurnFromState(data);
 }
@@ -817,10 +859,17 @@ async function submitTurnGuess(champ) {
   const failCol = !colCat.matches(champ);
   guessInput.value = "";
 
+  const nextTurn = mp.role === "host" ? "guest" : "host";
+
   if (failRow || failCol) {
-    errLine.textContent = mismatchMessage(rowCat, colCat, champ, failRow, failCol);
+    // One guess per turn — a wrong answer ends it and passes to the opponent.
+    errLine.textContent = mismatchMessage(rowCat, colCat, champ, failRow, failCol) + " Turn passed.";
     errLine.className = "err info";
-    return; // infinite guesses on your turn — try again, no write needed
+    selected = null;
+    guessInput.disabled = true;
+    hintRow.style.display = "none";
+    await updateRoomState(mp.code, { turn: nextTurn, turnStartedAt: Date.now() });
+    return;
   }
 
   const cellOwner = [...(state.cellOwner || Array(9).fill(null))];
@@ -831,15 +880,15 @@ async function submitTurnGuess(champ) {
   scores[mp.role] = (scores[mp.role] || 0) + 1;
 
   const allClaimed = cellOwner.every((o) => o !== null);
-  const nextTurn = mp.role === "host" ? "guest" : "host";
 
   selected = null;
   guessInput.disabled = true;
   hintRow.style.display = "none";
 
-  await updateRoomState(mp.code, { cellOwner, cellChampId, scores, turn: nextTurn });
+  await updateRoomState(mp.code, { cellOwner, cellChampId, scores, turn: nextTurn, turnStartedAt: Date.now() });
   if (allClaimed) {
     stopTimer();
+    stopTurnTicker();
     await updateRoomFields(mp.code, { status: "finished" });
   }
 }
@@ -892,6 +941,7 @@ function onTurnsUpdate(role, data) {
     const firstLabel = data.state.firstPlayer === role ? "You go" : "Your opponent goes";
     coinFlipEl.innerHTML = `<span class="coin">🪙</span> Coin flip: ${firstLabel} first!`;
     setMpStatus("Both players in — go!", true);
+    if (role === "host") updateRoomState(mp.code, { turnStartedAt: Date.now() }); // real start-of-round clock, not the room-creation timestamp
     initTurnRoundLocal(data.state.rowIds, data.state.colIds, data);
     return;
   }
@@ -946,8 +996,9 @@ mpCreateBtn.addEventListener("click", async () => {
           turn: Math.random() < 0.5 ? "host" : "guest",
           firstPlayer: null, // set right after, so `turn` and `firstPlayer` match
           gaveUpBy: null,
+          turnStartedAt: Date.now(),
         }
-      : { rowIds, colIds, results: {} };
+      : { rowIds, colIds, results: {}, infiniteGuesses: infiniteToggle.checked };
     if (mpMode === "turns") initialState.firstPlayer = initialState.turn;
     const { code, role } = await createRoom("grid", initialState);
     await enterMpRoom(code, role, mpMode);

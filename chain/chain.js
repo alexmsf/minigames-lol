@@ -8,6 +8,19 @@ const GROUP_LABELS = { region: "region", species: "species", position: "position
 
 const CHAMP_BY_ID = new Map(CHAMPIONS.map((c) => [c.id, c]));
 
+// Every chain is timed now. You get TURN_TIME_START seconds for your first
+// link; each successful link shaves TURN_TIME_STEP off the *next* turn's
+// clock, down to a TURN_TIME_FLOOR floor so it never becomes literally
+// impossible. Running out of time always ends the round, regardless of the
+// sudden-death setting — sudden death only governs whether a *wrong* guess
+// (made in time) also ends it.
+const TURN_TIME_START = 30;
+const TURN_TIME_FLOOR = 5;
+const TURN_TIME_STEP = 1;
+function turnDurationForLength(length) {
+  return Math.max(TURN_TIME_FLOOR, TURN_TIME_START - (length - 1) * TURN_TIME_STEP);
+}
+
 /* ---------- stats ---------- */
 const { load: loadStats, save: saveStats } = createStatsStore("runeterra-chain-stats", {
   gamesPlayed: 0, longestChain: 0, bestTimeSeconds: null,
@@ -29,16 +42,18 @@ let usedIds = new Set();
 let misses = 0;
 let roundOver = true;
 let suddenDeath = false;
-let timedRun = false;
 let settingsLocked = false;
 let hintLevel = 0;
 let hintTextValue = "";
 
 let timerInterval = null;
-let timerStartMs = null;
+let roundStartMs = null;     // when the current round began (for the elapsed/best-time stat)
+let turnDeadlineMs = null;   // when the current turn's clock hits zero
 let timerElapsedSeconds = 0;
+let turnRemainingSeconds = TURN_TIME_START;
 
-let mp = null; // { code, role, unsubscribe, roundStarted, resultSent }
+let mp = null;          // { code, role, unsubscribe, currentRound, lastKnownRound }
+let mpIsMyTurn = false; // only the active player's client should act on a timeout
 
 const chainEl = document.getElementById("chain");
 const chainScrollEl = document.getElementById("chain-scroll") || chainEl.parentElement;
@@ -59,10 +74,9 @@ const hintText = document.getElementById("hint-text");
 const giveUpBtn = document.getElementById("give-up-btn");
 const shareBtn = document.getElementById("share-btn");
 const copyToast = document.getElementById("copy-toast");
+const settingsRow = document.querySelector(".settings-row");
 const suddenToggle = document.getElementById("sudden-toggle");
 const suddenToggleLabel = document.getElementById("sudden-toggle-label");
-const timerToggle = document.getElementById("timer-toggle");
-const timerToggleLabel = document.getElementById("timer-toggle-label");
 const timerRow = document.getElementById("timer-row");
 const timerPill = document.getElementById("timer-pill");
 const statsStripEl = document.getElementById("stats-strip");
@@ -78,6 +92,7 @@ const mpIntro = document.getElementById("mp-intro");
 const mpTurnRow = document.getElementById("mp-turn-row");
 const mpTagHost = document.getElementById("mp-tag-host");
 const mpTagGuest = document.getElementById("mp-tag-guest");
+const mpSettingsLine = document.getElementById("mp-settings-line");
 
 function randomStartChampion() {
   return CHAMPIONS[Math.floor(Math.random() * CHAMPIONS.length)];
@@ -95,7 +110,6 @@ function newChain(forcedStart) {
   hintTextValue = "";
 
   suddenDeath = suddenToggle.checked;
-  timedRun = mp ? true : timerToggle.checked;
 
   guessInput.value = "";
   guessInput.disabled = false;
@@ -111,47 +125,71 @@ function newChain(forcedStart) {
   setSettingsLocked(false);
 
   stopTimer();
+  roundStartMs = null;
   timerElapsedSeconds = 0;
-  timerRow.style.display = timedRun ? "flex" : "none";
-  updateTimerDisplay();
-  if (mp) startTimer();
+  timerRow.style.display = "flex";
+  startTurnTimer();
 
   renderChain();
   renderHintUI();
   updateStatsBar();
   renderStatsStrip();
-  if (!mp) guessInput.focus();
+  guessInput.focus();
 }
 
 function setSettingsLocked(locked) {
-  timerToggle.disabled = locked || !!mp;
-  timerToggleLabel.classList.toggle("disabled", locked || !!mp);
   suddenToggle.disabled = locked || !!mp;
   suddenToggleLabel.classList.toggle("disabled", locked || !!mp);
 }
 
 function lockSettingsForRound() {
   if (settingsLocked) return;
-  timedRun = mp ? true : timerToggle.checked;
-  suddenDeath = mp ? false : suddenToggle.checked;
   settingsLocked = true;
   setSettingsLocked(true);
-  if (timedRun && !mp) startTimer();
-  timerRow.style.display = timedRun ? "flex" : "none";
 }
 
 /* ---------- timer ---------- */
-function updateTimerDisplay() { timerPill.textContent = formatTime(timerElapsedSeconds); }
-function startTimer() {
-  if (timerInterval) return;
-  timerStartMs = Date.now() - timerElapsedSeconds * 1000;
-  timerInterval = setInterval(() => {
-    timerElapsedSeconds = Math.floor((Date.now() - timerStartMs) / 1000);
-    updateTimerDisplay();
-  }, 250);
+// One continuous per-turn countdown. It doesn't pause or reset on a wrong
+// guess — you're free to keep guessing (unless sudden death is on) as long
+// as the clock hasn't hit zero. A fresh, shorter clock starts the moment a
+// link lands.
+function updateTimerDisplay() {
+  timerPill.textContent = formatTime(turnRemainingSeconds);
+  timerPill.classList.toggle("warn", turnRemainingSeconds <= 5);
 }
+
+function startTurnTimer(turnStartMsOverride) {
+  const start = turnStartMsOverride != null ? turnStartMsOverride : Date.now();
+  if (roundStartMs == null) roundStartMs = start;
+  const duration = turnDurationForLength(chain.length);
+  turnDeadlineMs = start + duration * 1000;
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(tickTimer, 200);
+  tickTimer();
+}
+
+function tickTimer() {
+  const now = Date.now();
+  timerElapsedSeconds = Math.max(0, Math.floor((now - roundStartMs) / 1000));
+  turnRemainingSeconds = Math.max(0, Math.ceil((turnDeadlineMs - now) / 1000));
+  updateTimerDisplay();
+  if (turnDeadlineMs - now <= 0) onTurnTimeout();
+}
+
 function stopTimer() {
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+function onTurnTimeout() {
+  if (roundOver) { stopTimer(); return; }
+  if (mp) {
+    // Both clients tick down in sync, but only the player whose turn it
+    // actually is should end the round — otherwise both would race to.
+    if (mpIsMyTurn) { stopTimer(); timeoutMp(); }
+  } else {
+    stopTimer();
+    finishRound(false, false, true);
+  }
 }
 
 /* ---------- rendering ---------- */
@@ -244,6 +282,7 @@ function submitGuess(champ) {
     renderChain();
     renderHintUI();
     updateStatsBar();
+    startTurnTimer(); // fresh, shorter clock for the next link
     return;
   }
 
@@ -255,8 +294,9 @@ function submitGuess(champ) {
   errLine.className = "err info";
   updateStatsBar();
   if (suddenDeath) {
-    finishRound(false, true);
+    finishRound(false, true, false);
   }
+  // Otherwise: keep guessing — the clock (not the miss) is what ends it.
 }
 
 /* ---------- hints ---------- */
@@ -302,10 +342,10 @@ giveUpBtn.addEventListener("click", () => {
   if (mp) { concedeMp(); return; }
   const ok = window.confirm("End this chain here?");
   if (!ok) return;
-  finishRound(true, false);
+  finishRound(true, false, false);
 });
 
-function finishRound(gaveUp, suddenDeathEnd) {
+function finishRound(gaveUp, suddenDeathEnd, timedOut) {
   if (roundOver) return;
   roundOver = true;
   stopTimer();
@@ -318,18 +358,20 @@ function finishRound(gaveUp, suddenDeathEnd) {
 
   const length = chain.length;
   finalScore.textContent = `Chain of ${length}`;
-  let line = suddenDeathEnd
-    ? "Sudden death — a wrong guess ended the run here."
-    : gaveUp
-      ? "You called it there."
-      : "Chain complete.";
+  let line = timedOut
+    ? "Time's up — the clock beat you to it."
+    : suddenDeathEnd
+      ? "Sudden death — a wrong guess ended the run here."
+      : gaveUp
+        ? "You called it there."
+        : "Chain complete.";
 
   stats.gamesPlayed += 1;
   if (length > stats.longestChain) {
     stats.longestChain = length;
     line += " New longest chain!";
   }
-  if (timedRun && length >= stats.longestChain) {
+  if (length >= stats.longestChain) {
     if (stats.bestTimeSeconds == null || timerElapsedSeconds < stats.bestTimeSeconds) {
       stats.bestTimeSeconds = timerElapsedSeconds;
     }
@@ -345,8 +387,7 @@ function finishRound(gaveUp, suddenDeathEnd) {
 /* ---------- share result ---------- */
 shareBtn.addEventListener("click", async () => {
   const names = chain.map((c) => c.name).join(" → ");
-  const timeLine = timedRun ? `\nTime: ${formatTime(timerElapsedSeconds)}` : "";
-  const text = `Runeterra Champion Chain — length ${chain.length}${timeLine}\n${names}`;
+  const text = `Runeterra Champion Chain — length ${chain.length}\nTime: ${formatTime(timerElapsedSeconds)}\n${names}`;
   try {
     await navigator.clipboard.writeText(text);
     copyToast.textContent = "Copied to clipboard!";
@@ -359,9 +400,12 @@ shareBtn.addEventListener("click", async () => {
 });
 
 /* ================= multiplayer (1v1 turn-based) ================= */
-// One shared chain. Players alternate turns adding a link. Giving up on your
-// turn concedes the round to your opponent — the chain's final length is the
-// shared result either way.
+// One shared chain. Players alternate turns adding a link. The room host
+// sets the round's parameters (currently: sudden death) at creation time —
+// they apply to both players and can't be changed mid-room. Every 1v1
+// round is timed; there's no toggle for it. Giving up on your turn, or
+// running out of your turn's clock, concedes the round to your opponent —
+// the chain's final length is the shared result either way.
 
 function setMpStatus(text, live) {
   mpStatus.textContent = text;
@@ -384,8 +428,10 @@ mpCreateBtn.addEventListener("click", async () => {
   setMpStatus("Creating room…");
   try {
     const start = randomStartChampion();
+    const hostSuddenDeath = suddenToggle.checked;
     const { code, role } = await createRoom("chain", {
       chainIds: [start.id], turn: "guest", status: "waiting", round: 1,
+      suddenDeath: hostSuddenDeath, turnStartedAt: Date.now(),
     });
     await enterMpRoom(code, role);
   } catch (err) {
@@ -419,16 +465,24 @@ async function enterMpRoom(code, role) {
     ? "Share this code with your opponent. They move first once they join."
     : "You're in! You move first.";
 
-  mp = { code, role, unsubscribe: null, roundStarted: false, currentRound: null };
+  // The room's settings are locked in by the host — no per-player choice
+  // once you're in a room.
+  settingsRow.style.display = "none";
+
+  mp = { code, role, unsubscribe: null, currentRound: null, lastKnownRound: 1 };
   mp.unsubscribe = await subscribeToRoom(code, (data) => onMpUpdate(role, code, data));
 }
 
 function onMpUpdate(role, code, data) {
   const bothPresent = data.hostPresent && data.guestPresent;
   mp.lastKnownRound = data.state.round || 1;
+  suddenDeath = !!data.state.suddenDeath;
   rebuildChainFromIds(data.state.chainIds);
   renderChain();
   updateStatsBar();
+
+  mpSettingsLine.style.display = "block";
+  mpSettingsLine.textContent = `Room settings (set by host) — Sudden death: ${suddenDeath ? "On" : "Off"} · every round timed`;
 
   mpTagHost.classList.toggle("turn", data.state.turn === "host" && data.status !== "finished");
   mpTagGuest.classList.toggle("turn", data.state.turn === "guest" && data.status !== "finished");
@@ -452,16 +506,9 @@ function onMpUpdate(role, code, data) {
     hintRow.style.display = "none"; // hints stay solo-only, to keep 1v1 fair
     resultBanner.classList.remove("show");
     setMpStatus("Both players in — go!", true);
-    // 1v1 rounds are always timed — otherwise a chain can drag on forever.
-    // (This was previously never wired up for multiplayer at all.)
-    timedRun = true;
-    timerElapsedSeconds = 0;
+    roundStartMs = Date.now();
     timerRow.style.display = "flex";
-    updateTimerDisplay();
-    startTimer();
   }
-
-  const myTurn = data.state.turn === role;
 
   if (data.status === "finished") {
     roundOver = true;
@@ -470,24 +517,33 @@ function onMpUpdate(role, code, data) {
     giveUpBtn.disabled = true;
     setMpStatus("Round finished.", true);
     const iLost = data.state.loserRole === role;
+    const lostToTimeout = data.state.loserReason === "timeout";
     mpResultLine.style.display = "block";
     mpResultLine.classList.remove("mp-win", "mp-lose");
     mpResultLine.classList.add(iLost ? "mp-lose" : "mp-win");
     finalScore.textContent = `Chain of ${chain.length}`;
     finalLine.textContent = iLost
-      ? "😔 You couldn't extend the chain — your opponent wins this round."
-      : "🏆 Your opponent couldn't extend the chain — you win this round!";
+      ? (lostToTimeout ? "⏱️ You ran out of time — your opponent wins this round." : "😔 You couldn't extend the chain — your opponent wins this round.")
+      : (lostToTimeout ? "⏱️ Your opponent ran out of time — you win this round!" : "🏆 Your opponent couldn't extend the chain — you win this round!");
     mpResultLine.textContent = `Final chain length: ${chain.length}`;
     resultBanner.classList.add("show");
     return;
   }
 
+  const myTurn = data.state.turn === role;
+  mpIsMyTurn = myTurn;
   guessInput.disabled = !myTurn;
   errLine.textContent = "";
   errLine.className = "err";
   guessHint.innerHTML = myTurn
     ? `Your move — connect to <b>${chain[chain.length - 1].name}</b>`
     : `Waiting for opponent's move…`;
+
+  // Both clients sync their countdown off the shared turnStartedAt so the
+  // clock reads the same for both players, even though only the active
+  // player's client acts on a timeout.
+  startTurnTimer(data.state.turnStartedAt);
+
   if (myTurn) guessInput.focus();
 }
 
@@ -514,14 +570,20 @@ async function submitMpGuess(champ) {
   guessInput.disabled = true; // avoid double-submits while the write is in flight
   const nextTurn = mp.role === "host" ? "guest" : "host";
   const newChainIds = [...chain.map((c) => c.id), champ.id];
-  await updateRoomState(mp.code, { chainIds: newChainIds, turn: nextTurn });
+  await updateRoomState(mp.code, { chainIds: newChainIds, turn: nextTurn, turnStartedAt: Date.now() });
 }
 
 async function concedeMp() {
   const ok = window.confirm("Give up your turn? Your opponent wins this round.");
   if (!ok) return;
   await updateRoomFields(mp.code, { status: "finished" });
-  await updateRoomState(mp.code, { loserRole: mp.role });
+  await updateRoomState(mp.code, { loserRole: mp.role, loserReason: "conceded" });
+}
+
+async function timeoutMp() {
+  if (!mp || roundOver) return;
+  await updateRoomFields(mp.code, { status: "finished" });
+  await updateRoomState(mp.code, { loserRole: mp.role, loserReason: "timeout" });
 }
 
 /* ---------- boot ---------- */
@@ -532,8 +594,10 @@ document.getElementById("play-again-btn").addEventListener("click", () => {
     if (mp.role === "host") {
       const start = randomStartChampion();
       const nextRound = (mp.lastKnownRound || 1) + 1;
-      updateRoomState(mp.code, { chainIds: [start.id], turn: "guest", loserRole: null, round: nextRound })
-        .then(() => updateRoomFields(mp.code, { status: "in_progress" }));
+      updateRoomState(mp.code, {
+        chainIds: [start.id], turn: "guest", loserRole: null, loserReason: null,
+        round: nextRound, turnStartedAt: Date.now(),
+      }).then(() => updateRoomFields(mp.code, { status: "in_progress" }));
     } else {
       setMpStatus("Waiting for host to start the next round…");
     }
